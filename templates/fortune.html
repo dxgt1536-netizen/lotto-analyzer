@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}오늘의 로또 운세{% endblock %}
+{% block page_description %}이름과 생년월일로 알아보는 오늘의 로또 운세. 행운 지수, 행운의 번호, 행운의 색을 확인해보세요.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  이름과 생년월일을 입력하면 오늘 하루의 행운 지수와 행운의 번호를 알려드려요. 매일 결과가 바뀌며,
+  입력한 정보는 브라우저에서만 계산되고 서버로 전송되지 않습니다. 재미로만 봐주세요!
+</p>
+
+<div class="card">
+  <h2 style="margin-top:0;">🔮 오늘의 로또 운세</h2>
+
+  <label for="fortuneName" class="tax-input-label">이름</label>
+  <input type="text" id="fortuneName" placeholder="예: 홍길동" maxlength="20" class="fortune-input">
+
+  <label for="fortuneBirth" class="tax-input-label" style="margin-top:14px;">생년월일</label>
+  <input type="date" id="fortuneBirth" class="fortune-input">
+
+  <button type="button" id="fortuneBtn" class="primary tax-calc-btn">오늘의 운세 확인하기</button>
+  <p class="muted" id="fortuneError" style="display:none; color:var(--series-4, #e74c3c);"></p>
+</div>
+
+<div class="card" id="fortuneResult" style="display:none;">
+  <div class="toolbar">
+    <h2 style="margin:0;" id="fortuneTitle">오늘의 운세</h2>
+    <button type="button" id="fortuneShareBtn" style="margin-left:auto;">🔗 공유</button>
+  </div>
+
+  <div class="tax-hero-label">행운 지수</div>
+  <div class="tax-hero-value" id="fortuneScore">0점</div>
+  <div class="tax-bar">
+    <div class="tax-bar-net" id="fortuneScoreBar" style="background:var(--series-1);"></div>
+  </div>
+
+  <p class="fortune-comment" id="fortuneComment"></p>
+
+  <div class="fortune-grid">
+    <div class="fortune-block">
+      <div class="tax-hero-label">오늘의 행운 번호</div>
+      <div class="ball-row" id="fortuneBalls"></div>
+    </div>
+    <div class="fortune-block">
+      <div class="tax-hero-label">행운의 색</div>
+      <div class="fortune-color-row">
+        <span class="fortune-color-dot" id="fortuneColorDot"></span>
+        <span id="fortuneColorName"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="fortune-actions">
+    <a href="{{ url_for('recommend') }}" class="btn primary">이 번호로 추천받기</a>
+  </div>
+</div>
+
+<script>
+(function() {
+  function djb2Hash(str) {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) + hash + str.charCodeAt(i)) >>> 0;
+    }
+    return hash >>> 0;
+  }
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function() {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function todayStr() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
+  const COLORS = [
+    { name: '빨강', hex: '#e74c3c' }, { name: '주황', hex: '#e67e22' },
+    { name: '노랑', hex: '#f1c40f' }, { name: '초록', hex: '#27ae60' },
+    { name: '파랑', hex: '#3498db' }, { name: '남색', hex: '#2c3e50' },
+    { name: '보라', hex: '#9b59b6' }, { name: '분홍', hex: '#ff6b9d' },
+    { name: '하늘색', hex: '#00bcd4' }, { name: '금색', hex: '#d4af37' },
+  ];
+
+  const COMMENTS = {
+    high: [
+      '오늘은 뭘 해도 잘 풀리는 날이에요. 평소 안 하던 조합에도 도전해보세요.',
+      '행운이 가득한 하루! 자신감을 갖고 원하는 번호를 골라보세요.',
+      '주변에 좋은 소식이 들려올 수 있는 날이에요.',
+    ],
+    mid: [
+      '평범하지만 나쁘지 않은 하루예요. 평소 쓰던 번호도 괜찮아요.',
+      '무난한 흐름의 하루입니다. 크게 욕심내지 않는 게 좋아요.',
+      '소소한 행운이 따르는 날이에요.',
+    ],
+    low: [
+      '오늘은 신중하게 접근하는 게 좋아요. 무리하지 마세요.',
+      '컨디션 관리가 필요한 날이에요. 재미로만 즐겨보세요.',
+      '큰 기대보다는 가볍게 즐기는 마음이 어울리는 날이에요.',
+    ],
+  };
+
+  function pick(arr, rand) {
+    return arr[Math.floor(rand() * arr.length)];
+  }
+
+  function pickBalls(rand) {
+    const pool = [];
+    for (let i = 1; i <= 45; i++) pool.push(i);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    return pool.slice(0, 6).sort((a, b) => a - b);
+  }
+
+  function ballColor(n) {
+    if (n <= 10) return 'var(--ball-1)';
+    if (n <= 20) return 'var(--ball-2)';
+    if (n <= 30) return 'var(--ball-3)';
+    if (n <= 40) return 'var(--ball-4)';
+    return 'var(--ball-5)';
+  }
+
+  const nameInput = document.getElementById('fortuneName');
+  const birthInput = document.getElementById('fortuneBirth');
+  const errorEl = document.getElementById('fortuneError');
+  const resultEl = document.getElementById('fortuneResult');
+
+  function runFortune(pushState) {
+    const name = nameInput.value.trim();
+    const birth = birthInput.value;
+    errorEl.style.display = 'none';
+
+    if (!name) {
+      errorEl.textContent = '이름을 입력해주세요.';
+      errorEl.style.display = '';
+      return;
+    }
+    if (!birth) {
+      errorEl.textContent = '생년월일을 입력해주세요.';
+      errorEl.style.display = '';
+      return;
+    }
+
+    localStorage.setItem('fortuneName', name);
+    localStorage.setItem('fortuneBirth', birth);
+
+    const seedStr = `${name}_${birth}_${todayStr()}`;
+    const seed = djb2Hash(seedStr);
+    const rand = mulberry32(seed);
+
+    const score = 40 + Math.floor(rand() * 61); // 40~100
+    const balls = pickBalls(mulberry32(seed ^ 0x9e3779b9));
+    const color = pick(COLORS, mulberry32(seed ^ 0x85ebca6b));
+    const tier = score >= 80 ? 'high' : score >= 55 ? 'mid' : 'low';
+    const comment = pick(COMMENTS[tier], mulberry32(seed ^ 0xc2b2ae35));
+
+    document.getElementById('fortuneTitle').textContent = `${name}님의 오늘의 운세`;
+    document.getElementById('fortuneScore').textContent = score + '점';
+    document.getElementById('fortuneScoreBar').style.width = score + '%';
+    document.getElementById('fortuneComment').textContent = comment;
+    document.getElementById('fortuneColorDot').style.background = color.hex;
+    document.getElementById('fortuneColorName').textContent = color.name;
+
+    const ballsEl = document.getElementById('fortuneBalls');
+    ballsEl.innerHTML = balls.map(function(n) {
+      return `<span class="ball" style="background:${ballColor(n)}">${n}</span>`;
+    }).join('');
+
+    resultEl.style.display = '';
+    resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('fortuneBtn').addEventListener('click', function() { runFortune(); });
+
+  document.getElementById('fortuneShareBtn').addEventListener('click', async function() {
+    const btn = this;
+    const name = nameInput.value.trim();
+    const scoreText = document.getElementById('fortuneScore').textContent;
+    const text = `${name}님의 오늘 로또 운세는 ${scoreText}! Lotto Stat에서 나의 운세도 확인해보세요.`;
+    const url = new URL(location.href);
+    url.search = '';
+    const shareUrl = url.toString();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Lotto Stat 오늘의 운세', text, url: shareUrl });
+      } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+      return;
+    }
+    const original = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+      btn.textContent = '복사됨!';
+    } catch (e) {
+      btn.textContent = '복사 실패';
+    }
+    setTimeout(function() { btn.textContent = original; }, 1500);
+  });
+
+  const savedName = localStorage.getItem('fortuneName');
+  const savedBirth = localStorage.getItem('fortuneBirth');
+  if (savedName) nameInput.value = savedName;
+  if (savedBirth) birthInput.value = savedBirth;
+})();
+</script>
+
+{% endblock %}

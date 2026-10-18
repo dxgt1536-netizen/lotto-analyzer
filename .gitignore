@@ -1,0 +1,9 @@
+.venv/
+.env
+.claude/
+__pycache__/
+*.pyc
+data/*.db
+server*.log
+*.key
+*.pem

@@ -1,0 +1,23 @@
+## 클라우드 서버(리눅스)에서 이 파일을 사용합니다.
+## sslip.io는 별도 가입 없이 IP를 도메인처럼 쓰게 해주는 무료 DNS 서비스이고,
+## Caddy가 이 도메인으로 Let's Encrypt 인증서를 자동 발급/갱신합니다.
+## 아래 도메인은 .env의 PUBLIC_BASE_URL과 정확히 일치해야 합니다.
+
+152.67.208.226.sslip.io {
+    reverse_proxy localhost:3000
+}
+
+lottostat.kr, www.lottostat.kr {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+    reverse_proxy localhost:8000
+}
+
+lottoanalysis.duckdns.org {
+    redir https://lottostat.kr{uri} permanent
+}

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}글쓰기{% endblock %}
+{% block page_description %}자유게시판 글쓰기.{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>글쓰기</h2>
+  {% if error %}
+  <p class="form-error">{{ error }}</p>
+  {% endif %}
+  <form method="post" class="board-form">
+    <div class="form-row">
+      <label for="nickname">닉네임</label>
+      <input type="text" id="nickname" name="nickname" maxlength="20" required value="{{ form.get('nickname', '') }}">
+    </div>
+    <div class="form-row">
+      <label for="password">비밀번호</label>
+      <input type="password" id="password" name="password" minlength="4" required>
+      <span class="muted" style="font-size:12px;">글을 지울 때 필요해요. 잊지 마세요.</span>
+    </div>
+    <div class="form-row">
+      <label for="title">제목</label>
+      <input type="text" id="title" name="title" maxlength="100" required value="{{ form.get('title', '') }}">
+    </div>
+    <div class="form-row">
+      <label for="content">내용</label>
+      <textarea id="content" name="content" rows="10" maxlength="5000" required>{{ form.get('content', '') }}</textarea>
+    </div>
+    <!-- 허니팟: 사람에게는 숨겨져 있고 스팸봇만 채우는 필드 -->
+    <div class="hp-field" aria-hidden="true">
+      <label for="homepage">홈페이지</label>
+      <input type="text" id="homepage" name="homepage" tabindex="-1" autocomplete="off">
+    </div>
+    <div class="toolbar">
+      <button type="submit" class="primary">등록</button>
+      <a href="{{ url_for('board_list') }}" class="btn">취소</a>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

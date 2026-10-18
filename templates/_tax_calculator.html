@@ -1,0 +1,169 @@
+<div class="card tax-calc-full">
+  <div class="tax-calc-grid">
+    <div class="tax-input-section">
+      <div class="toolbar" style="margin-bottom:2px;">
+        <h2 style="margin:0;">🧮 당첨금 세금 계산기</h2>
+        <button type="button" id="taxShareBtn" style="margin-left:auto;">🔗 공유</button>
+      </div>
+      <p class="muted" style="margin-top:2px;">2026년 기준 기타소득세 규정으로 계산합니다.</p>
+
+      <label for="taxAmount" class="tax-input-label">당첨금액</label>
+      <div class="tax-amount-wrap">
+        <input type="text" inputmode="numeric" id="taxAmount" placeholder="예: 500,000,000" class="tax-amount-input">
+        <span class="tax-amount-suffix">원</span>
+      </div>
+
+      <div class="tax-presets">
+        <button type="button" class="tax-preset-btn" data-amount="50000">4등 5만원</button>
+        <button type="button" class="tax-preset-btn" data-amount="1500000">3등 예시 150만원</button>
+        <button type="button" class="tax-preset-btn" data-amount="70000000">2등 예시 7천만원</button>
+        <button type="button" class="tax-preset-btn" data-amount="2000000000">1등 예시 20억원</button>
+      </div>
+
+      <button type="button" id="taxCalcBtn" class="primary tax-calc-btn">계산하기</button>
+
+      <p class="muted tax-note">
+        200만원 이하는 비과세, 200만원 초과 시 3억원까지 22%(기타소득세 20%+지방소득세 2%),
+        3억원 초과분은 33%(기타소득세 30%+지방소득세 3%)가 원천징수됩니다. 참고용 계산이며
+        실제 지급액과 차이가 있을 수 있습니다.
+      </p>
+    </div>
+
+    <div class="tax-result-section" id="taxResultSection">
+      <div class="tax-result-placeholder" id="taxPlaceholder">
+        <div class="tax-placeholder-icon">💰</div>
+        <p>당첨금액을 입력하고<br>계산하기를 눌러보세요</p>
+      </div>
+      <div class="tax-result-content" id="taxResultContent" style="display:none;">
+        <div class="tax-hero-label">실수령액</div>
+        <div class="tax-hero-value" id="taxHeroNet">0원</div>
+        <div class="tax-breakdown">
+          <div class="tax-row">
+            <span>당첨금액</span>
+            <strong id="taxRowAmount">0원</strong>
+          </div>
+          <div class="tax-row">
+            <span>세금 (<span id="taxRowPct">0</span>%)</span>
+            <strong id="taxRowTax">0원</strong>
+          </div>
+        </div>
+        <div class="tax-bar">
+          <div class="tax-bar-net" id="taxBarNet"></div>
+          <div class="tax-bar-tax" id="taxBarTax"></div>
+        </div>
+        <div class="tax-bar-legend">
+          <span><i class="tax-dot tax-dot-net"></i> 실수령액</span>
+          <span><i class="tax-dot tax-dot-tax"></i> 세금</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  function formatWon(n) {
+    return Math.round(n).toLocaleString() + '원';
+  }
+
+  function calcLottoTax(amount) {
+    if (amount <= 2000000) return { tax: 0, net: amount };
+    const base = Math.min(amount, 300000000);
+    const excess = Math.max(amount - 300000000, 0);
+    const tax = Math.round(base * 0.22 + excess * 0.33);
+    return { tax, net: amount - tax };
+  }
+
+  function parseAmount(raw) {
+    return Number(String(raw).replace(/[^0-9]/g, ''));
+  }
+
+  function runCalc() {
+    const input = document.getElementById('taxAmount');
+    const amount = parseAmount(input.value);
+    const placeholder = document.getElementById('taxPlaceholder');
+    const content = document.getElementById('taxResultContent');
+
+    if (!amount || amount <= 0) {
+      placeholder.style.display = '';
+      content.style.display = 'none';
+      return;
+    }
+
+    const { tax, net } = calcLottoTax(amount);
+    const pct = amount ? (tax / amount * 100) : 0;
+
+    document.getElementById('taxHeroNet').textContent = formatWon(net);
+    document.getElementById('taxRowAmount').textContent = formatWon(amount);
+    document.getElementById('taxRowTax').textContent = formatWon(tax);
+    document.getElementById('taxRowPct').textContent = pct.toFixed(1);
+    document.getElementById('taxBarNet').style.width = (100 - pct) + '%';
+    document.getElementById('taxBarTax').style.width = pct + '%';
+
+    placeholder.style.display = 'none';
+    content.style.display = '';
+  }
+
+  document.getElementById('taxCalcBtn').addEventListener('click', runCalc);
+
+  const amountInput = document.getElementById('taxAmount');
+  // 입력할 때마다 숫자만 남기고 천단위 쉼표를 자동으로 다시 붙여준다.
+  amountInput.addEventListener('input', function() {
+    const digits = amountInput.value.replace(/[^0-9]/g, '');
+    amountInput.value = digits ? Number(digits).toLocaleString() : '';
+  });
+  amountInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') runCalc();
+  });
+
+  document.querySelectorAll('.tax-preset-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      amountInput.value = Number(btn.dataset.amount).toLocaleString();
+      runCalc();
+    });
+  });
+
+  document.getElementById('taxShareBtn').addEventListener('click', async function() {
+    const btn = this;
+    const amount = parseAmount(amountInput.value);
+    if (!amount || amount <= 0) {
+      alert('먼저 당첨금액을 입력해주세요.');
+      return;
+    }
+    const { tax, net } = calcLottoTax(amount);
+    const url = new URL(location.href);
+    url.searchParams.set('amount', amount);
+    const shareUrl = url.toString();
+    const text = `당첨금 ${formatWon(amount)}의 세금은 ${formatWon(tax)}, 실수령액은 ${formatWon(net)}이에요!`;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Lotto Stat 세금 계산기', text, url: shareUrl });
+      } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+      return;
+    }
+    const original = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+      btn.textContent = '복사됨!';
+    } catch (e) {
+      btn.textContent = '복사 실패';
+    }
+    setTimeout(function() { btn.textContent = original; }, 1500);
+  });
+
+  // 공유 링크(?amount=...)로 들어왔으면 그 금액을 바로 채워서 계산해준다.
+  const sharedAmount = new URLSearchParams(location.search).get('amount');
+  if (sharedAmount) {
+    const n = parseAmount(sharedAmount);
+    if (n > 0) {
+      amountInput.value = n.toLocaleString();
+      runCalc();
+    }
+    const cleanParams = new URLSearchParams(location.search);
+    cleanParams.delete('amount');
+    const qs = cleanParams.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+  }
+})();
+</script>

@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}무료 로또 번호 추천기{% endblock %}
+{% block page_description %}로또 분석기 겸 로또 번호 추천기. 로또 6/45 전체 {{ count }}회차 당첨번호 통계와 최신 결과를 무료로 확인하세요. 번호별 출현 빈도, 핫콜드 번호, 번호 추천까지 제공합니다.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  로또 6/45 당첨번호를 자동으로 수집해 통계를 분석하고 번호를 추천해주는 무료 로또 분석기·로또 번호 추천기입니다.
+  번호별 출현 빈도, 홀짝·구간 비율, 합계 분포 등은 <a href="{{ url_for('stats') }}">통계 페이지</a>에서,
+  핫/콜드 번호 기반 추천은 <a href="{{ url_for('recommend') }}">번호 추천기 페이지</a>에서 확인할 수 있습니다.
+</p>
+
+<div class="card">
+  <h2>데이터 현황</h2>
+  <div class="toolbar">
+    <div class="stat-tiles" style="flex:1">
+      <div class="stat-tile">
+        <div class="value">{{ count }}</div>
+        <div class="label">저장된 회차 수</div>
+      </div>
+      <div class="stat-tile">
+        <div class="value">{{ latest.round if latest else '-' }}</div>
+        <div class="label">최신 회차</div>
+      </div>
+      <div class="stat-tile">
+        <div class="value">{{ latest.draw_date if latest else '-' }}</div>
+        <div class="label">최신 추첨일</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if latest %}
+<div class="card">
+  <h2>최신 당첨번호 ({{ latest.round }}회, {{ latest.draw_date }})</h2>
+  <div class="ball-row">
+    {{ m.ball(latest.n1) }}{{ m.ball(latest.n2) }}{{ m.ball(latest.n3) }}
+    {{ m.ball(latest.n4) }}{{ m.ball(latest.n5) }}{{ m.ball(latest.n6) }}
+    <span class="ball-plus">+</span>
+    {{ m.ball(latest.bonus) }}
+  </div>
+</div>
+{% else %}
+<div class="card">
+  <p class="muted">아직 저장된 데이터가 없습니다. 잠시 후 다시 확인해주세요.</p>
+</div>
+{% endif %}
+
+{% if recent %}
+<div class="card">
+  <h2>최근 회차</h2>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead><tr><th>회차</th><th>추첨일</th><th>당첨번호</th></tr></thead>
+    <tbody>
+      {% for d in recent %}
+      <tr>
+        <td>{{ d.round }}</td>
+        <td>{{ d.draw_date }}</td>
+        <td>
+          <div class="ball-row nowrap">
+            {{ m.ball(d.n1, small=True) }}{{ m.ball(d.n2, small=True) }}{{ m.ball(d.n3, small=True) }}
+            {{ m.ball(d.n4, small=True) }}{{ m.ball(d.n5, small=True) }}{{ m.ball(d.n6, small=True) }}
+            <span class="ball-plus" style="font-size:14px;">+</span>
+            {{ m.ball(d.bonus, small=True) }}
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

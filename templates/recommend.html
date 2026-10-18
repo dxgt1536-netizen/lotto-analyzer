@@ -1,0 +1,329 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}로또 번호 추천기{% endblock %}
+{% block page_description %}무료 로또 번호 추천기. 완전 무작위, 핫 번호, 콜드 번호, 반자동(직접 입력+자동 채움)까지 로또 6/45 번호를 추천합니다.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  버튼 한 번으로 로또 번호 조합을 생성합니다. "완전 랜덤"은 1~45 중 균등한 확률로,
+  "핫 번호 추천"은 과거 회차에서 자주 나온 번호에, "콜드 번호 추천"은 반대로 적게 나온 번호에
+  더 높은 확률을 부여해 선택합니다. "반자동"은 원하는 구슬에 번호를 직접 입력하고 나머지는
+  비워두면 자동으로 채워줍니다. 어느 탭이든 결과의 구슬을 클릭하거나 직접 입력해서 원하는
+  번호로 바꿀 수 있고, 오른쪽 용지 미리보기에서도 번호를 클릭해 바꿀 수 있습니다. 모든 방식은
+  당첨을 보장하지 않는 참고용 도구입니다.
+</p>
+
+<div class="card">
+  <h2>번호 추천</h2>
+  <div class="toolbar">
+    <div class="mode-toggle">
+      <a href="{{ url_for('recommend', mode='random', count=count) }}" class="{{ 'active' if mode == 'random' else '' }}">완전 랜덤</a>
+      <a href="{{ url_for('recommend', mode='hot', count=count) }}" class="{{ 'active' if mode == 'hot' else '' }}">핫 번호 추천</a>
+      <a href="{{ url_for('recommend', mode='cold', count=count) }}" class="{{ 'active' if mode == 'cold' else '' }}">콜드 번호 추천</a>
+      <a href="{{ url_for('recommend', mode='semi', count=count) }}" class="{{ 'active' if mode == 'semi' else '' }}">반자동</a>
+    </div>
+    <button id="regenBtn">다시 생성</button>
+    <button id="shareBtn">🔗 공유</button>
+  </div>
+  <p class="muted">
+    {% if mode == 'hot' %}
+      과거 회차에서 자주 나온 번호일수록 조금 더 높은 확률로 선택됩니다. (당첨을 보장하지 않습니다 — 각 회차는 독립 사건입니다)
+    {% elif mode == 'cold' %}
+      과거 회차에서 적게 나온 번호일수록 조금 더 높은 확률로 선택됩니다. (당첨을 보장하지 않습니다 — 각 회차는 독립 사건입니다)
+    {% elif mode == 'semi' %}
+      구슬을 클릭해서 원하는 번호를 직접 입력하세요 (1~45). 비워둔 구슬만 "다시 생성"을 누르면 자동으로 채워집니다.
+    {% else %}
+      1~45 중 완전히 균등한 확률로 6개를 무작위 선택합니다.
+    {% endif %}
+  </p>
+
+  <div class="pick-area">
+    <div id="pickList">
+      {% if mode == 'semi' %}
+        {% for i in range(count) %}
+        <div class="pick-row">
+          <div class="pick-index">{{ i + 1 }}</div>
+          <div class="ball-row">
+            {% for j in range(6) %}
+            <input type="number" min="1" max="45" inputmode="numeric" class="ball-input">
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        {% for pick in picks %}
+        <div class="pick-row">
+          <div class="pick-index">{{ loop.index }}</div>
+          <div class="ball-row">
+            {% for n in pick %}
+            <input type="number" min="1" max="45" inputmode="numeric" class="ball-input filled" value="{{ n }}" style="background:{{ m.ball_color(n) }}">
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    <div class="slip-preview" id="slipPreview"></div>
+  </div>
+</div>
+
+<script>
+const ballColor = (n) => n <= 10 ? 'var(--ball-1)' : n <= 20 ? 'var(--ball-2)' : n <= 30 ? 'var(--ball-3)' : n <= 40 ? 'var(--ball-4)' : 'var(--ball-5)';
+const mode = "{{ mode }}";
+
+function renderPicks(picks) {
+  const list = document.getElementById('pickList');
+  list.innerHTML = picks.map((pick, i) => `
+    <div class="pick-row">
+      <div class="pick-index">${i + 1}</div>
+      <div class="ball-row">
+        ${pick.map(n => `<input type="number" min="1" max="45" inputmode="numeric" class="ball-input filled" value="${n}" style="background:${ballColor(n)}">`).join('')}
+      </div>
+    </div>
+  `).join('');
+  bindRowHover();
+}
+
+// 실제 로또 용지(7칸 x 7줄, 1~45, 빨간 인쇄+마킹 칸) 모양을 재현한 패널 하나를 목록 오른쪽에 고정해두고,
+// 마우스를 올린 줄에 맞춰 라벨/마킹 내용만 바꿔치기한다 (줄마다 위치가 움직이지 않도록).
+// 용지의 번호를 클릭해도 그 줄의 구슬을 직접 바꿀 수 있다.
+function buildSlipHTML() {
+  let cells = '';
+  for (let n = 1; n <= 45; n++) {
+    cells += `<span class="slip-cell" data-num="${n}"><span class="slip-mark">${n}</span></span>`;
+  }
+  return `
+    <div class="slip-grid">
+      <div class="slip-header"><span class="slip-label" id="slipLabel">A</span><span class="slip-price">1,000원</span></div>
+      <div class="slip-body">${cells}</div>
+    </div>`;
+}
+
+let activeRow = null;
+let activeRowIdx = -1;
+
+function setBallValue(el, value) {
+  el.value = value;
+  if (value === '') {
+    el.style.background = '';
+    el.classList.remove('filled', 'manual');
+  } else {
+    el.style.background = ballColor(Number(value));
+    el.classList.add('filled', 'manual');
+  }
+}
+
+function handleSlipClick(e) {
+  if (!activeRow) return;
+  const cell = e.target.closest('.slip-cell');
+  if (!cell) return;
+  const num = Number(cell.dataset.num);
+  const inputs = Array.from(activeRow.querySelectorAll('.ball-input'));
+  const existing = inputs.find(el => Number(el.value) === num);
+  if (existing) {
+    setBallValue(existing, '');
+  } else {
+    const empty = inputs.find(el => el.value === '');
+    if (!empty) return; // 이미 6칸이 다 찼으면 무시 (지우고 나서 다시 클릭)
+    setBallValue(empty, String(num));
+  }
+  markSlip(activeRow, activeRowIdx);
+  saveState();
+}
+
+function ensureSlipPreview() {
+  const preview = document.getElementById('slipPreview');
+  if (preview && !preview.dataset.built) {
+    preview.innerHTML = buildSlipHTML();
+    preview.dataset.built = '1';
+    preview.addEventListener('click', handleSlipClick);
+  }
+  return preview;
+}
+
+function getRowNumbers(row) {
+  return Array.from(row.querySelectorAll('.ball-input')).map(el => Number(el.value)).filter(n => n >= 1 && n <= 45);
+}
+
+function markSlip(row, idx) {
+  const preview = ensureSlipPreview();
+  if (!preview) return;
+  activeRow = row;
+  activeRowIdx = idx;
+  const label = idx < 5 ? String.fromCharCode(65 + idx) : String(idx + 1);
+  const labelEl = document.getElementById('slipLabel');
+  if (labelEl) labelEl.textContent = label;
+  const nums = new Set(getRowNumbers(row));
+  preview.querySelectorAll('.slip-cell').forEach(cell => {
+    cell.classList.toggle('marked', nums.has(Number(cell.dataset.num)));
+  });
+}
+
+function bindRowHover() {
+  ensureSlipPreview();
+  document.querySelectorAll('#pickList .pick-row').forEach((row, idx) => {
+    if (row.dataset.hoverBound) return;
+    row.dataset.hoverBound = '1';
+    row.addEventListener('mouseenter', () => markSlip(row, idx));
+  });
+}
+
+function shuffledPool(exclude) {
+  const pool = [];
+  for (let n = 1; n <= 45; n++) if (!exclude.has(n)) pool.push(n);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool;
+}
+
+function fillSemiBlanks() {
+  document.querySelectorAll('#pickList .pick-row').forEach(row => {
+    const inputs = Array.from(row.querySelectorAll('.ball-input'));
+    const locked = inputs.filter(el => el.classList.contains('manual'));
+    const fillable = inputs.filter(el => !el.classList.contains('manual'));
+    const used = new Set(locked.map(el => Number(el.value)));
+    const pool = shuffledPool(used);
+    fillable.forEach((el, i) => {
+      const val = pool[i];
+      el.value = val;
+      el.style.background = ballColor(val);
+      el.classList.add('filled');
+      el.classList.remove('manual');
+    });
+  });
+  if (activeRow) markSlip(activeRow, activeRowIdx);
+  saveState();
+}
+
+// 탭(모드)별로 따로 저장해서, 새로고침하거나 다른 탭에 갔다 와도 "다시 생성"을 누르기 전까지는
+// 지금 보던 번호가 그대로 남아있게 한다.
+function storageKey() {
+  return `lottostat_picks_${mode}`;
+}
+
+function saveState() {
+  const rows = Array.from(document.querySelectorAll('#pickList .pick-row')).map(row =>
+    Array.from(row.querySelectorAll('.ball-input')).map(el => ({
+      v: el.value,
+      manual: el.classList.contains('manual'),
+    }))
+  );
+  localStorage.setItem(storageKey(), JSON.stringify(rows));
+}
+
+function loadState() {
+  try {
+    return JSON.parse(localStorage.getItem(storageKey()) || 'null');
+  } catch (e) {
+    return null;
+  }
+}
+
+function applyState(saved) {
+  document.querySelectorAll('#pickList .pick-row').forEach((row, ri) => {
+    const savedRow = saved[ri];
+    if (!savedRow) return;
+    Array.from(row.querySelectorAll('.ball-input')).forEach((el, ci) => {
+      const cell = savedRow[ci];
+      if (!cell) return;
+      setBallValue(el, cell.v || '');
+      el.classList.toggle('manual', !!cell.manual);
+    });
+  });
+}
+
+document.getElementById('regenBtn').addEventListener('click', async function() {
+  if (mode === 'semi') {
+    fillSemiBlanks();
+    return;
+  }
+  const count = {{ count }};
+  const res = await fetch(`/api/recommend?mode=${mode}&count=${count}`);
+  const data = await res.json();
+  renderPicks(data.picks);
+  saveState();
+});
+
+bindRowHover();
+
+document.getElementById('pickList').addEventListener('input', function(e) {
+  const el = e.target;
+  if (!el.classList.contains('ball-input')) return;
+  const n = Number(el.value);
+  const valid = el.value !== '' && n >= 1 && n <= 45;
+  // 사용자가 직접 타이핑한 값은 "다시 생성"을 눌러도 유지되도록 manual로 표시
+  setBallValue(el, valid ? el.value : '');
+  if (activeRow === el.closest('.pick-row')) markSlip(activeRow, activeRowIdx);
+  saveState();
+});
+
+// 지금 화면에 보이는 번호를 "3-7-15-22-34-41,2-9-..." 형태로 인코딩해 URL로 공유한다.
+function encodeShare() {
+  return Array.from(document.querySelectorAll('#pickList .pick-row'))
+    .map(row => Array.from(row.querySelectorAll('.ball-input')).map(el => el.value).filter(v => v !== '').join('-'))
+    .filter(s => s !== '')
+    .join(',');
+}
+
+function decodeShare(str) {
+  return str.split(',').filter(Boolean).map(seg =>
+    seg.split('-').map(Number).filter(n => n >= 1 && n <= 45)
+  );
+}
+
+function buildShareText(rows) {
+  const lines = rows.map((nums, i) => `${i + 1}번  ${nums.join(', ')}`);
+  return `Lotto Stat에서 뽑은 로또 번호예요!\n${lines.join('\n')}`;
+}
+
+document.getElementById('shareBtn').addEventListener('click', async function() {
+  const btn = this;
+  const encoded = encodeShare();
+  if (!encoded) return;
+  const url = new URL(location.href);
+  url.searchParams.set('mode', mode);
+  url.searchParams.set('share', encoded);
+  const shareUrl = url.toString();
+  const text = buildShareText(decodeShare(encoded));
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Lotto Stat 추천 번호', text, url: shareUrl });
+    } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+    return;
+  }
+  const original = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+    btn.textContent = '복사됨!';
+  } catch (e) {
+    btn.textContent = '복사 실패';
+  }
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+const shareParam = new URLSearchParams(location.search).get('share');
+if (shareParam) {
+  const rows = decodeShare(shareParam);
+  document.querySelectorAll('#pickList .pick-row').forEach((row, ri) => {
+    const nums = rows[ri];
+    Array.from(row.querySelectorAll('.ball-input')).forEach((el, ci) => {
+      setBallValue(el, (nums && nums[ci]) ? String(nums[ci]) : '');
+    });
+  });
+  saveState();
+  const cleanParams = new URLSearchParams(location.search);
+  cleanParams.delete('share');
+  history.replaceState(null, '', `${location.pathname}?${cleanParams.toString()}`);
+} else {
+  const savedOnLoad = loadState();
+  if (savedOnLoad) {
+    applyState(savedOnLoad);
+  } else {
+    saveState();
+  }
+}
+</script>
+{% endblock %}

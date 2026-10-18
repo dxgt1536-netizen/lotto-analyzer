@@ -1,0 +1,3 @@
+{% macro ball_color(n) %}{% if n <= 10 %}var(--ball-1){% elif n <= 20 %}var(--ball-2){% elif n <= 30 %}var(--ball-3){% elif n <= 40 %}var(--ball-4){% else %}var(--ball-5){% endif %}{% endmacro %}
+
+{% macro ball(n, small=False, tiny=False) %}<span class="ball{% if small %} small{% endif %}{% if tiny %} tiny{% endif %}" style="background:{{ ball_color(n) }}">{{ n }}</span>{% endmacro %}

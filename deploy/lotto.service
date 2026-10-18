@@ -1,0 +1,15 @@
+[Unit]
+Description=Lotto 6/45 analysis site (gunicorn)
+After=network.target
+
+[Service]
+# 실제 서버(152.67.208.226)에 /etc/systemd/system/lotto.service 로 이미 설치되어 있음.
+User=ubuntu
+WorkingDirectory=/home/ubuntu/lotto
+EnvironmentFile=/home/ubuntu/lotto/.env
+ExecStart=/home/ubuntu/lotto/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8000 wsgi:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

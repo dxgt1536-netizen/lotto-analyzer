@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ draw.round }}회 로또 당첨번호 및 당첨금{% endblock %}
+{% block page_description %}로또 6/45 {{ draw.round }}회({{ draw.draw_date }}) 당첨번호와 1등부터 5등까지 등수별 당첨금·당첨자 수를 확인하세요.{% endblock %}
+{% block content %}
+
+{% set rank2_total = draw.rank2_amount * draw.rank2_winners if draw.rank2_amount and draw.rank2_winners else none %}
+{% set rank3_total = draw.rank3_amount * draw.rank3_winners if draw.rank3_amount and draw.rank3_winners else none %}
+{% set rank4_total = draw.rank4_amount * draw.rank4_winners if draw.rank4_amount and draw.rank4_winners else none %}
+{% set rank5_total = draw.rank5_amount * draw.rank5_winners if draw.rank5_amount and draw.rank5_winners else none %}
+{% set rank1_total = draw.first_prize_amount * draw.first_prize_winners %}
+
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0;">{{ draw.round }}회 로또 당첨결과 <span class="muted" style="font-weight:400;">({{ draw.draw_date }})</span></h2>
+    <button type="button" id="prizeShareBtn" style="margin-left:auto;">🔗 공유</button>
+  </div>
+
+  <div class="ball-row" style="margin-top:16px;">
+    {{ m.ball(draw.n1) }}{{ m.ball(draw.n2) }}{{ m.ball(draw.n3) }}
+    {{ m.ball(draw.n4) }}{{ m.ball(draw.n5) }}{{ m.ball(draw.n6) }}
+    <span class="ball-plus">+</span>
+    {{ m.ball(draw.bonus) }}
+  </div>
+
+  <div class="pagination" style="margin-top:20px;">
+    {% if has_prev %}
+    <a href="{{ url_for('prize_detail', round_no=draw.round - 1) }}">‹ {{ draw.round - 1 }}회</a>
+    {% endif %}
+    <a href="{{ url_for('prizes') }}">전체 회차 목록</a>
+    {% if has_next %}
+    <a href="{{ url_for('prize_detail', round_no=draw.round + 1) }}">{{ draw.round + 1 }}회 ›</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin-top:0;">등수별 당첨금</h2>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead>
+      <tr>
+        <th>등수</th>
+        <th>당첨조건</th>
+        <th>당첨자 수</th>
+        <th>1인당 당첨금</th>
+        <th>총 당첨금</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1등</strong></td>
+        <td class="muted">6개 번호 일치</td>
+        <td class="muted">{{ draw.first_prize_winners | comma }}명</td>
+        <td>{{ draw.first_prize_amount | comma }}원</td>
+        <td class="muted">{{ rank1_total | comma }}원</td>
+      </tr>
+      <tr>
+        <td><strong>2등</strong></td>
+        <td class="muted">5개 번호 + 보너스 일치</td>
+        <td class="muted">{{ draw.rank2_winners | comma }}명</td>
+        <td>{{ draw.rank2_amount | comma }}원</td>
+        <td class="muted">{{ rank2_total | comma }}원</td>
+      </tr>
+      <tr>
+        <td><strong>3등</strong></td>
+        <td class="muted">5개 번호 일치</td>
+        <td class="muted">{{ draw.rank3_winners | comma }}명</td>
+        <td>{{ draw.rank3_amount | comma }}원</td>
+        <td class="muted">{{ rank3_total | comma }}원</td>
+      </tr>
+      <tr>
+        <td><strong>4등</strong></td>
+        <td class="muted">4개 번호 일치</td>
+        <td class="muted">{{ draw.rank4_winners | comma }}명</td>
+        <td>{{ draw.rank4_amount | comma }}원</td>
+        <td class="muted">{{ rank4_total | comma }}원</td>
+      </tr>
+      <tr>
+        <td><strong>5등</strong></td>
+        <td class="muted">3개 번호 일치</td>
+        <td class="muted">{{ draw.rank5_winners | comma }}명</td>
+        <td>{{ draw.rank5_amount | comma }}원</td>
+        <td class="muted">{{ rank5_total | comma }}원</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="muted" style="margin-top:14px;">총 판매금액: {{ draw.total_sales | comma }}원</p>
+</div>
+
+<div class="card">
+  <p class="muted" style="margin:0;">
+    1등에 당첨됐다면 세금이 얼마나 빠질지 <a href="{{ url_for('tax_calculator', amount=draw.first_prize_amount) }}">세금 계산기</a>에서 바로 확인해보세요.
+  </p>
+</div>
+
+<script>
+(function() {
+  document.getElementById('prizeShareBtn').addEventListener('click', async function() {
+    const btn = this;
+    const text = '{{ draw.round }}회 로또 당첨번호: {{ draw.n1 }}, {{ draw.n2 }}, {{ draw.n3 }}, {{ draw.n4 }}, {{ draw.n5 }}, {{ draw.n6 }} + 보너스 {{ draw.bonus }}';
+    const url = location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Lotto Stat {{ draw.round }}회 당첨결과', text, url });
+      } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+      return;
+    }
+    const original = btn.textContent;
+    try {
+      await navigator.clipboard.writeText(`${text}\n${url}`);
+      btn.textContent = '복사됨!';
+    } catch (e) {
+      btn.textContent = '복사 실패';
+    }
+    setTimeout(function() { btn.textContent = original; }, 1500);
+  });
+})();
+</script>
+
+{% endblock %}

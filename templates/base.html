@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}로또 분석기{% endblock %} - {{ site_name }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" sizes="any">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="icon" type="image/png" sizes="16x16" href="{{ url_for('static', filename='favicon-16.png') }}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon-32.png') }}">
+  <link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', filename='favicon-48.png') }}">
+  <link rel="icon" type="image/png" sizes="96x96" href="{{ url_for('static', filename='favicon-96.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon-180.png') }}">
+  <meta name="description" content="{% block page_description %}{{ site_description }}{% endblock %}">
+  {% if site_url %}<link rel="canonical" href="{{ site_url }}{{ request.path }}">{% endif %}
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ site_name }}">
+  <meta property="og:title" content="{% block og_title %}{{ self.title() }}{% endblock %}">
+  <meta property="og:description" content="{{ self.page_description() }}">
+  {% if site_url %}<meta property="og:url" content="{{ site_url }}{{ request.path }}">{% endif %}
+  <meta name="twitter:card" content="summary">
+
+  {% if google_site_verification %}<meta name="google-site-verification" content="{{ google_site_verification }}">{% endif %}
+  {% if naver_site_verification %}<meta name="naver-site-verification" content="{{ naver_site_verification }}">{% endif %}
+
+  {% if site_url %}
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"WebSite","name":"{{ site_name }}","url":"{{ site_url }}"}
+  </script>
+  {% endif %}
+
+  {% if ads_enabled %}
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client_id }}" crossorigin="anonymous"></script>
+  {% endif %}
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="app-nav">
+    <a href="{{ url_for('index') }}" class="brand">🎱 Lotto Stat</a>
+    <button type="button" class="nav-toggle" id="navToggle" aria-label="메뉴 열기" aria-expanded="false" aria-controls="navLinks">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="nav-links" id="navLinks">
+      <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint == 'index' else '' }}">홈</a>
+      <a href="{{ url_for('stats') }}" class="{{ 'active' if request.endpoint == 'stats' else '' }}">통계</a>
+      <a href="{{ url_for('recommend') }}" class="{{ 'active' if request.endpoint == 'recommend' else '' }}">번호 추천</a>
+      <a href="{{ url_for('fortune') }}" class="{{ 'active' if request.endpoint == 'fortune' else '' }}">운세 확인</a>
+      <a href="{{ url_for('simulator') }}" class="{{ 'active' if request.endpoint == 'simulator' else '' }}">시뮬레이터</a>
+      <a href="{{ url_for('prizes') }}" class="{{ 'active' if request.endpoint == 'prizes' else '' }}">역대 당첨금</a>
+      <a href="{{ url_for('tax_calculator') }}" class="{{ 'active' if request.endpoint == 'tax_calculator' else '' }}">세금계산기</a>
+      <a href="{{ url_for('other_games') }}" class="{{ 'active' if request.endpoint == 'other_games' else '' }}">기타복권</a>
+      <a href="{{ url_for('board_list') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('board') else '' }}">게시판</a>
+      <div class="visit-badge">
+        <span>오늘 <strong>{{ today_visits | comma }}</strong>명</span>
+        <span class="visit-sep">·</span>
+        <span>누적 <strong>{{ total_visits | comma }}</strong>명</span>
+      </div>
+    </div>
+  </nav>
+  <main class="{% block main_class %}{% endblock %}">
+    {% import "_ad_slot.html" as ads with context %}
+    {{ ads.ad_slot(adsense_slot_top) }}
+    {% block content %}{% endblock %}
+    <footer class="site-footer">
+      <p>본 사이트는 동행복권 공개 데이터를 바탕으로 한 통계 정보 제공 서비스이며, 복권 구매·당첨을 대행하거나 당첨을 보장하지 않습니다. 로또 6/45는 매 회차 독립적인 무작위 추첨이며, 과거 출현 빈도가 다음 회차 결과를 예측하지 않습니다.</p>
+    </footer>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}자유게시판{% endblock %}
+{% block page_description %}로또 분석기 자유게시판. 번호 추천, 통계, 당첨 후기 등 자유롭게 이야기해보세요. 로그인 없이 닉네임으로 글을 쓸 수 있습니다.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  로그인 없이 닉네임과 비밀번호만으로 글을 쓸 수 있는 자유게시판입니다. 비밀번호는 내가 쓴 글을
+  지울 때만 쓰이니 꼭 기억해두세요.
+</p>
+
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0;">자유게시판 <span class="muted" style="font-weight:400;">(전체 {{ total }}개)</span></h2>
+    <a href="{{ url_for('board_write') }}" class="btn primary" style="margin-left:auto;">✏️ 글쓰기</a>
+  </div>
+
+  {% if posts %}
+  <div style="overflow-x:auto;">
+  <table class="board-table">
+    <thead>
+      <tr><th class="board-col-num">번호</th><th>제목</th><th class="board-col-nick">닉네임</th><th class="board-col-date">날짜</th><th class="board-col-views">조회</th></tr>
+    </thead>
+    <tbody>
+      {% for post in posts %}
+      <tr class="{{ 'pinned-row' if post.pinned else '' }}">
+        <td class="muted board-col-num">{% if post.pinned %}<span class="pin-badge">공지</span>{% else %}{{ post.id }}{% endif %}</td>
+        <td>
+          {% if post.pinned %}<span class="pin-badge board-title-badge">공지</span>{% endif %}
+          <a href="{{ url_for('board_view', post_id=post.id) }}">{{ post.title }}</a>
+          {% if post.comment_count %}<span class="muted comment-count">[{{ post.comment_count }}]</span>{% endif %}
+          <div class="board-meta-mobile muted">{{ post.nickname }} · {{ post.created_at[:10] }} · 조회 {{ post.views }}</div>
+        </td>
+        <td class="muted board-col-nick">{{ post.nickname }}</td>
+        <td class="muted board-col-date">{{ post.created_at[:10] }}</td>
+        <td class="muted board-col-views">{{ post.views }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% for p in range(1, total_pages + 1) %}
+    <a href="{{ url_for('board_list', page=p) }}" class="{{ 'active' if p == page else '' }}">{{ p }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="muted">아직 글이 없습니다. 첫 글을 남겨보세요!</p>
+  {% endif %}
+</div>
+
+{% endblock %}

@@ -1,0 +1,12 @@
+{# 애드센스 승인 전에는 ads_enabled가 False라 아무것도 렌더링하지 않는다 #}
+{% macro ad_slot(slot_id, style="display:block; min-height:90px;") %}
+{% if ads_enabled and slot_id %}
+<ins class="adsbygoogle"
+     style="{{ style }}"
+     data-ad-client="{{ adsense_client_id }}"
+     data-ad-slot="{{ slot_id }}"
+     data-ad-format="auto"
+     data-full-width-responsive="true"></ins>
+<script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+{% endif %}
+{% endmacro %}

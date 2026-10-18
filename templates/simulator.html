@@ -1,0 +1,593 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}로또 확률 시뮬레이터{% endblock %}
+{% block page_description %}로또 6/45 당첨 확률 시뮬레이터. 내 번호를 정하고 수백만 회 가상 추첨을 돌려 등수별(1~5등, 꽝) 적중 횟수와 확률을 직접 확인해보세요.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  내 번호를 정한 뒤 가상 추첨을 수백만 번 돌려서, 그 번호가 등수별로 몇 번이나 맞았을지
+  집계해봅니다. 이 시뮬레이션은 <strong>실제 로또 결과와 무관하며</strong>, 매번 브라우저에서
+  새로 무작위로 계산됩니다. 1등이 얼마나 희박한 확률인지 체감해보는 재미용 도구입니다.
+</p>
+
+<div class="card">
+  <h2>내 번호</h2>
+  <div class="toolbar">
+    <div class="ball-row" id="myNumbers">
+      {% for i in range(6) %}
+      <input type="number" min="1" max="45" inputmode="numeric" class="ball-input">
+      {% endfor %}
+    </div>
+    <button id="randomizeBtn">번호 새로 뽑기</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>확률 시뮬레이션</h2>
+  <p class="muted" style="margin-top:-6px;">버튼을 누른 만큼 시행 횟수가 계속 누적됩니다.</p>
+  <div class="toolbar">
+    <div class="trial-btns">
+      <button class="trial-btn" data-n="1">1회</button>
+      <button class="trial-btn" data-n="10">10회</button>
+      <button class="trial-btn" data-n="100">100회</button>
+      <button class="trial-btn" data-n="1000">1,000회</button>
+      <button class="trial-btn" data-n="10000">만회</button>
+      <button class="trial-btn" data-n="100000">10만회</button>
+      <button class="trial-btn" data-n="1000000">100만회</button>
+    </div>
+    <button id="simResetBtn">초기화</button>
+    <button id="simShareBtn">🔗 공유</button>
+  </div>
+  <p class="muted" id="simStatus"></p>
+
+  <div class="stat-tiles" style="margin-bottom:16px;">
+    <div class="stat-tile">
+      <div class="value" id="totalTrialsCount">0</div>
+      <div class="label">총 시행 횟수</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="totalSpent">0원</div>
+      <div class="label">총 사용금액 (1,000원 x 시행)</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="totalWon">0원</div>
+      <div class="label">총 당첨금액 (참고용)</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="roiValue">0%</div>
+      <div class="label">수익률</div>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;">
+  <table id="simTable" style="display:none;">
+    <thead>
+      <tr><th>등수</th><th>조건</th><th>적중 횟수</th><th>시뮬레이션 확률</th><th>실제 당첨 확률</th><th>예상 당첨금(참고용)</th><th>누적 당첨금(참고용)</th></tr>
+    </thead>
+    <tbody id="simTableBody"></tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2>가상 추첨</h2>
+  <div class="toolbar">
+    <button id="drawBtn" class="primary">🎲 가상 추첨하기</button>
+    <button id="drawResetBtn">초기화</button>
+    <button id="drawShareBtn">🔗 공유</button>
+  </div>
+  <div class="ball-row" id="drawResultBalls"></div>
+  <div id="drawResultText" class="sim-single-result"></div>
+
+  <div class="stat-tiles" style="margin:16px 0;">
+    <div class="stat-tile">
+      <div class="value" id="drawTotalTrials">0</div>
+      <div class="label">총 시행 횟수</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="drawTotalSpent">0원</div>
+      <div class="label">총 사용금액 (1,000원 x 시행)</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="drawTotalWon">0원</div>
+      <div class="label">총 당첨금액 (참고용)</div>
+    </div>
+    <div class="stat-tile">
+      <div class="value" id="drawRoiValue">0%</div>
+      <div class="label">수익률</div>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;">
+  <table id="drawStatsTable" style="display:none;">
+    <thead>
+      <tr><th>등수</th><th>조건</th><th>적중 횟수</th><th>시뮬레이션 확률</th><th>실제 당첨 확률</th><th>예상 당첨금(참고용)</th><th>누적 당첨금(참고용)</th></tr>
+    </thead>
+    <tbody id="drawStatsBody"></tbody>
+  </table>
+  </div>
+</div>
+
+<script>
+// oddsN/oddsPct는 실제 조합론으로 계산한 고정 이론값 (C(45,6)=8,145,060 기준).
+const TIERS = [
+  { key: 'grand',  rank: '1등', cond: '6개 번호 일치',        amount: () => randAmount(1_500_000_000, 3_000_000_000), oddsN: 8145060 },
+  { key: 'second', rank: '2등', cond: '5개 + 보너스 일치',    amount: () => randAmount(50_000_000, 90_000_000), oddsN: 1357510 },
+  { key: 'third',  rank: '3등', cond: '5개 번호 일치',        amount: () => randAmount(1_300_000, 1_800_000), oddsN: 35724 },
+  { key: 'fourth', rank: '4등', cond: '4개 번호 일치',        amount: () => 50000, oddsN: 733 },
+  { key: 'fifth',  rank: '5등', cond: '3개 번호 일치',        amount: () => 5000, oddsN: 45 },
+  { key: 'lose',   rank: '꽝',  cond: '2개 이하 일치',        amount: () => 0, oddsPct: 97.6166 },
+];
+
+function formatPct(pct) {
+  if (pct === 0) return '0%';
+  if (pct < 0.0001) return pct.toExponential(2) + '%';
+  return pct.toFixed(pct < 1 ? 4 : 2) + '%';
+}
+
+function randAmount(min, max) {
+  return Math.floor(min + Math.random() * (max - min));
+}
+
+function formatWon(n) {
+  if (n === 0) return '-';
+  if (n >= 100000000) return `약 ${(n / 100000000).toFixed(1)}억원`;
+  if (n >= 10000) return `약 ${Math.round(n / 10000).toLocaleString()}만원`;
+  return `${n.toLocaleString()}원`;
+}
+
+const ballColor = (n) => n <= 10 ? 'var(--ball-1)' : n <= 20 ? 'var(--ball-2)' : n <= 30 ? 'var(--ball-3)' : n <= 40 ? 'var(--ball-4)' : 'var(--ball-5)';
+
+function randomSix() {
+  const nums = new Set();
+  while (nums.size < 6) nums.add(Math.floor(Math.random() * 45) + 1);
+  return Array.from(nums).sort((a, b) => a - b);
+}
+
+function fillMyNumbers(nums) {
+  document.querySelectorAll('#myNumbers .ball-input').forEach((el, i) => {
+    el.value = nums[i];
+    el.style.background = ballColor(nums[i]);
+    el.classList.add('filled');
+  });
+}
+
+// 문자열 배열(입력칸에 그대로 넣을 값들)로 "내 번호" 입력칸을 채운다.
+function applyMyNumberValues(values) {
+  document.querySelectorAll('#myNumbers .ball-input').forEach((el, i) => {
+    const v = values[i] ?? '';
+    el.value = v;
+    const n = Number(v);
+    const valid = v !== '' && n >= 1 && n <= 45;
+    el.style.background = valid ? ballColor(n) : '';
+    el.classList.toggle('filled', v !== '');
+  });
+}
+
+// 공유 링크(?sim=... 또는 ?draw=...)로 들어왔으면 그 안의 번호/결과를 최우선으로 쓴다.
+function parseSharePayload(paramName) {
+  const raw = new URLSearchParams(location.search).get(paramName);
+  if (!raw) return null;
+  try {
+    return JSON.parse(decodeURIComponent(raw));
+  } catch (e) {
+    return null;
+  }
+}
+const simShareParam = new URLSearchParams(location.search).get('sim');
+const sharedSimPayload = parseSharePayload('sim');
+const drawShareParam = new URLSearchParams(location.search).get('draw');
+const sharedDrawPayload = parseSharePayload('draw');
+const sharedNumsPayload = sharedSimPayload || sharedDrawPayload;
+
+// 새로고침해도 "내 번호"가 그대로 남아있도록 브라우저에 저장해둔다.
+const MY_NUMBERS_KEY = 'lottostat_sim_numbers';
+
+function saveMyNumbers() {
+  const values = Array.from(document.querySelectorAll('#myNumbers .ball-input')).map(el => el.value);
+  localStorage.setItem(MY_NUMBERS_KEY, JSON.stringify(values));
+}
+
+function loadMyNumbers() {
+  try {
+    return JSON.parse(localStorage.getItem(MY_NUMBERS_KEY) || 'null');
+  } catch (e) {
+    return null;
+  }
+}
+
+document.getElementById('randomizeBtn').addEventListener('click', () => {
+  fillMyNumbers(randomSix());
+  saveMyNumbers();
+});
+
+const savedMyNumbers = loadMyNumbers();
+if (sharedNumsPayload && sharedNumsPayload.nums && sharedNumsPayload.nums.length === 6) {
+  applyMyNumberValues(sharedNumsPayload.nums);
+  saveMyNumbers();
+} else if (savedMyNumbers && savedMyNumbers.length === 6) {
+  applyMyNumberValues(savedMyNumbers);
+} else {
+  fillMyNumbers(randomSix());
+  saveMyNumbers();
+}
+
+document.querySelectorAll('#myNumbers .ball-input').forEach(el => {
+  el.addEventListener('input', function() {
+    const n = Number(this.value);
+    const valid = this.value !== '' && n >= 1 && n <= 45;
+    this.style.background = valid ? ballColor(n) : '';
+    this.classList.toggle('filled', this.value !== '');
+    saveMyNumbers();
+  });
+});
+
+function runSimulation(myNums, trials) {
+  const flags = new Uint8Array(46);
+  myNums.forEach(n => { flags[n] = 1; });
+
+  const pool = Array.from({ length: 45 }, (_, i) => i + 1);
+  const tally = { grand: 0, second: 0, third: 0, fourth: 0, fifth: 0, lose: 0 };
+
+  for (let t = 0; t < trials; t++) {
+    // 풀 안에서 7개(본번호 6 + 보너스 1)를 부분 셔플로 뽑는다 (매 시행마다 배열을 새로 만들지 않아 빠르다).
+    for (let i = 0; i < 7; i++) {
+      const j = i + Math.floor(Math.random() * (45 - i));
+      const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+    }
+    let match = 0;
+    for (let i = 0; i < 6; i++) if (flags[pool[i]]) match++;
+    const bonusHit = flags[pool[6]] === 1;
+
+    if (match === 6) tally.grand++;
+    else if (match === 5 && bonusHit) tally.second++;
+    else if (match === 5) tally.third++;
+    else if (match === 4) tally.fourth++;
+    else if (match === 3) tally.fifth++;
+    else tally.lose++;
+  }
+  return tally;
+}
+
+// 등수별 "예상 당첨금" 칸의 값. 애니메이션 도중 프레임마다 다시 뽑으면 너무 정신없이
+// 깜빡이므로, 한 번의 렌더링(또는 한 번의 카운트업 애니메이션) 동안은 고정해서 쓴다.
+function rollDisplayAmounts() {
+  const amounts = {};
+  TIERS.forEach(tier => { amounts[tier.key] = tier.amount(); });
+  return amounts;
+}
+
+// "확률 시뮬레이션"과 "가상 추첨" 두 카드가 완전히 같은 방식(누적 시행/사용금액/당첨금/수익률
+// + 카운트업 애니메이션 + 로컬 저장)으로 동작하므로, 그 로직을 하나의 팩토리로 묶어 재사용한다.
+// ids: 각 DOM 요소 id 묶음, storageKey: localStorage에 저장할 키.
+function createSimTracker(ids, storageKey) {
+  let trials = 0;
+  let tally = { grand: 0, second: 0, third: 0, fourth: 0, fifth: 0, lose: 0 };
+  let unitAmounts = {};
+  let token = 0; // 초기화나 새 시행이 들어오면 값을 올려서 진행 중인 애니메이션을 무효화한다.
+
+  function getUnitAmount(tier) {
+    if (!(tier.key in unitAmounts)) unitAmounts[tier.key] = tier.amount();
+    return unitAmounts[tier.key];
+  }
+
+  function save() {
+    localStorage.setItem(storageKey, JSON.stringify({ trials, tally, unitAmounts }));
+  }
+
+  function load() {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || 'null');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // trialsVal/tallyVal(그리고 displayAmounts)을 받아 그 순간의 상태를 화면에 그린다.
+  // 실제 누적값이 아니라 애니메이션 중간값을 넘겨도 되게 만들어서, 총 시행 횟수가
+  // 올라가는 속도에 맞춰 표/총 사용금액/총 당첨금액/수익률이 다같이 움직이게 한다.
+  function renderFromState(trialsVal, tallyVal, displayAmounts) {
+    const tbody = document.getElementById(ids.tbody);
+    let totalWon = 0;
+    tbody.innerHTML = TIERS.map(tier => {
+      const count = tallyVal[tier.key] || 0;
+      const simPctStr = tier.oddsN
+        ? (count > 0 ? `1 / ${Math.round(trialsVal / count).toLocaleString()}` : '-')
+        : formatPct(trialsVal ? (count / trialsVal * 100) : 0);
+      const realPctStr = tier.oddsN ? `1 / ${tier.oddsN.toLocaleString()}` : `${tier.oddsPct}%`;
+      // "예상 당첨금"은 매번 뽑히는 느낌용 값이고, "누적 당첨금"은 캐싱된 고정 단가로 계산해서
+      // 값이 들쭉날쭉하지 않게 한다.
+      const displayAmount = count > 0 ? (displayAmounts[tier.key] ?? 0) : 0;
+      const fixedUnitAmount = count > 0 ? getUnitAmount(tier) : 0;
+      const rowTotal = fixedUnitAmount * count;
+      totalWon += rowTotal;
+      const amount = count > 0 ? formatWon(displayAmount) : '-';
+      const totalAmount = count > 0 ? formatWon(rowTotal) : '-';
+      return `<tr>
+        <td><strong>${tier.rank}</strong></td>
+        <td class="muted">${tier.cond}</td>
+        <td>${count.toLocaleString()}회</td>
+        <td>${simPctStr}</td>
+        <td class="muted">${realPctStr}</td>
+        <td>${amount}</td>
+        <td><strong>${totalAmount}</strong></td>
+      </tr>`;
+    }).join('');
+    document.getElementById(ids.table).style.display = trialsVal > 0 ? '' : 'none';
+
+    document.getElementById(ids.trialsCount).textContent = trialsVal.toLocaleString();
+    const totalSpent = trialsVal * 1000;
+    document.getElementById(ids.totalSpent).textContent = totalSpent > 0 ? formatWon(totalSpent) : '0원';
+    document.getElementById(ids.totalWon).textContent = totalWon > 0 ? formatWon(totalWon) : '0원';
+    const roi = totalSpent > 0 ? ((totalWon - totalSpent) / totalSpent * 100) : 0;
+    const roiEl = document.getElementById(ids.roi);
+    roiEl.textContent = `${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`;
+    roiEl.style.color = roi >= 0 ? 'var(--ball-5)' : 'var(--ball-3)';
+  }
+
+  function renderCurrent() {
+    renderFromState(trials, tally, rollDisplayAmounts());
+  }
+
+  // 총 시행 횟수뿐 아니라 표/합계 수치도 같은 진행률(t)로 같이 올라가게 한다.
+  // 초당 100만 회 속도로 고정해서 세는 느낌을 주기 위해 등속(linear)으로 움직이고,
+  // 초기화나 다음 시행이 들어오면 token이 바뀌어 즉시 멈춘다.
+  function runCountUp(fromTrials, fromTally, toTrials, toTally, duration) {
+    const myToken = ++token;
+    const displayAmounts = rollDisplayAmounts();
+    const start = performance.now();
+    function step(now) {
+      if (myToken !== token) return; // 취소됨
+      const t = Math.min(1, (now - start) / duration);
+      const trialsVal = Math.round(fromTrials + (toTrials - fromTrials) * t);
+      const tallyVal = {};
+      Object.keys(toTally).forEach(k => {
+        tallyVal[k] = Math.round(fromTally[k] + (toTally[k] - fromTally[k]) * t);
+      });
+      renderFromState(trialsVal, tallyVal, displayAmounts);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function countUpDurationFor(delta) {
+    return Math.max(120, delta / 1000); // 초당 100만 회
+  }
+
+  // n회 만큼 새로 시뮬레이션을 돌려 누적에 더한다 (확률 시뮬레이션 카드에서 사용).
+  function addTrials(myNums, n) {
+    const fromTrials = trials, fromTally = { ...tally };
+    const batch = runSimulation(myNums, n);
+    Object.keys(tally).forEach(k => { tally[k] += batch[k]; });
+    trials += n;
+    save();
+    runCountUp(fromTrials, fromTally, trials, tally, countUpDurationFor(trials - fromTrials));
+  }
+
+  // 이미 결과가 정해진 시행 1건을 누적에 더한다 (가상 추첨 카드: 화면에 보여준 공과
+  // 어긋나지 않도록, 새로 무작위 시행을 돌리는 대신 그 결과를 그대로 반영한다).
+  function addKnownResult(tierKey) {
+    const fromTrials = trials, fromTally = { ...tally };
+    tally[tierKey] += 1;
+    trials += 1;
+    save();
+    runCountUp(fromTrials, fromTally, trials, tally, countUpDurationFor(1));
+  }
+
+  function reset() {
+    token++;
+    trials = 0;
+    tally = { grand: 0, second: 0, third: 0, fourth: 0, fifth: 0, lose: 0 };
+    unitAmounts = {};
+    renderFromState(0, tally, {});
+    save();
+  }
+
+  function setState(newTrials, newTally) {
+    token++;
+    trials = newTrials;
+    tally = newTally;
+    unitAmounts = {};
+    renderCurrent();
+    save();
+  }
+
+  function restore() {
+    const saved = load();
+    if (saved && saved.trials > 0) {
+      trials = saved.trials;
+      tally = saved.tally;
+      unitAmounts = saved.unitAmounts || {};
+      renderCurrent();
+    }
+  }
+
+  return {
+    addTrials, addKnownResult, reset, setState, restore,
+    get trials() { return trials; },
+    get tally() { return tally; },
+  };
+}
+
+const simTracker = createSimTracker({
+  tbody: 'simTableBody', table: 'simTable', trialsCount: 'totalTrialsCount',
+  totalSpent: 'totalSpent', totalWon: 'totalWon', roi: 'roiValue',
+}, 'lottostat_sim_stats');
+
+const drawTracker = createSimTracker({
+  tbody: 'drawStatsBody', table: 'drawStatsTable', trialsCount: 'drawTotalTrials',
+  totalSpent: 'drawTotalSpent', totalWon: 'drawTotalWon', roi: 'drawRoiValue',
+}, 'lottostat_draw_stats');
+
+if (sharedSimPayload && sharedSimPayload.trials > 0 && sharedSimPayload.tally) {
+  simTracker.setState(sharedSimPayload.trials, sharedSimPayload.tally);
+} else {
+  simTracker.restore();
+}
+
+if (sharedDrawPayload && sharedDrawPayload.trials > 0 && sharedDrawPayload.tally) {
+  drawTracker.setState(sharedDrawPayload.trials, sharedDrawPayload.tally);
+} else {
+  drawTracker.restore();
+}
+
+if (simShareParam || drawShareParam) {
+  // 주소창의 ?sim=...·?draw=... 파라미터는 한 번 반영했으면 지워서 깔끔하게 유지한다.
+  const cleanParams = new URLSearchParams(location.search);
+  cleanParams.delete('sim');
+  cleanParams.delete('draw');
+  const qs = cleanParams.toString();
+  history.replaceState(null, '', `${location.pathname}${qs ? '?' + qs : ''}`);
+}
+
+document.querySelectorAll('.trial-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const n = Number(this.dataset.n);
+    const myNums = Array.from(document.querySelectorAll('#myNumbers .ball-input'))
+      .map(el => Number(el.value))
+      .filter(n => n >= 1 && n <= 45);
+
+    if (myNums.length !== 6) {
+      document.getElementById('simStatus').textContent = '내 번호 6개를 모두 입력해주세요.';
+      return;
+    }
+
+    const startedAt = performance.now();
+    simTracker.addTrials(myNums, n);
+    const elapsed = ((performance.now() - startedAt) / 1000).toFixed(3);
+
+    document.getElementById('simStatus').textContent =
+      `이번 ${n.toLocaleString()}회 계산 ${elapsed}초 소요 · 누적 ${simTracker.trials.toLocaleString()}회`;
+  });
+});
+
+document.getElementById('simResetBtn').addEventListener('click', () => {
+  simTracker.reset();
+  document.getElementById('simStatus').textContent = '';
+});
+
+function buildSimShareText() {
+  const lines = TIERS.filter(t => t.key !== 'lose').map(t => `${t.rank} ${simTracker.tally[t.key].toLocaleString()}회`);
+  const roiText = document.getElementById('roiValue').textContent;
+  return `Lotto Stat 확률 시뮬레이터에서 ${simTracker.trials.toLocaleString()}회 돌려봤어요!\n${lines.join(' · ')}\n수익률 ${roiText}`;
+}
+
+document.getElementById('simShareBtn').addEventListener('click', async function() {
+  const btn = this;
+  if (simTracker.trials === 0) {
+    document.getElementById('simStatus').textContent = '먼저 시뮬레이션을 돌려보세요.';
+    return;
+  }
+  const myNumValues = Array.from(document.querySelectorAll('#myNumbers .ball-input')).map(el => el.value);
+  const payload = { nums: myNumValues, trials: simTracker.trials, tally: simTracker.tally };
+  const url = new URL(location.href);
+  url.searchParams.set('sim', encodeURIComponent(JSON.stringify(payload)));
+  const shareUrl = url.toString();
+  const text = buildSimShareText();
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Lotto Stat 시뮬레이션 결과', text, url: shareUrl });
+    } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+    return;
+  }
+  const original = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+    btn.textContent = '복사됨!';
+  } catch (e) {
+    btn.textContent = '복사 실패';
+  }
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+
+function judgeRank(matchCount, bonusMatch) {
+  if (matchCount === 6) return TIERS[0];
+  if (matchCount === 5 && bonusMatch) return TIERS[1];
+  if (matchCount === 5) return TIERS[2];
+  if (matchCount === 4) return TIERS[3];
+  if (matchCount === 3) return TIERS[4];
+  return TIERS[5];
+}
+
+document.getElementById('drawBtn').addEventListener('click', function() {
+  const myNums = Array.from(document.querySelectorAll('#myNumbers .ball-input'))
+    .map(el => Number(el.value))
+    .filter(n => n >= 1 && n <= 45);
+  if (myNums.length !== 6) {
+    alert('내 번호 6개를 모두 입력해주세요.');
+    return;
+  }
+  const myFlags = new Set(myNums);
+
+  const pool = Array.from({ length: 45 }, (_, i) => i + 1);
+  for (let i = 0; i < 7; i++) {
+    const j = i + Math.floor(Math.random() * (45 - i));
+    const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
+  }
+  const main = pool.slice(0, 6).sort((a, b) => a - b);
+  const bonus = pool[6];
+
+  const matchCount = main.filter(n => myFlags.has(n)).length;
+  const bonusMatch = myFlags.has(bonus);
+  const tier = judgeRank(matchCount, bonusMatch);
+
+  const mainBalls = main.map(n =>
+    `<span class="ball${myFlags.has(n) ? ' hit' : ''}" style="background:${ballColor(n)}">${n}</span>`
+  ).join('');
+  const bonusBall = `<span class="ball${bonusMatch ? ' hit' : ''}" style="background:${ballColor(bonus)}">${bonus}</span>`;
+  document.getElementById('drawResultBalls').innerHTML = `${mainBalls}<span class="ball-plus">+</span>${bonusBall}`;
+
+  const resultEl = document.getElementById('drawResultText');
+  const tone = tier.key === 'grand' ? 'tone-grand' : tier.key === 'lose' ? 'tone-lose' : 'tone-win';
+  resultEl.className = `sim-single-result show ${tone}`;
+  resultEl.innerHTML = tier.key === 'lose'
+    ? `꽝이에요 (일치 ${matchCount}개) — 한 번 더 도전해보세요!`
+    : `<strong>${tier.rank}</strong>입니다! (일치 ${matchCount}개${bonusMatch ? ' + 보너스' : ''}, 예상 당첨금 ${formatWon(tier.amount())})`;
+
+  drawTracker.addKnownResult(tier.key);
+});
+
+document.getElementById('drawResetBtn').addEventListener('click', () => {
+  drawTracker.reset();
+  document.getElementById('drawResultBalls').innerHTML = '';
+  document.getElementById('drawResultText').className = 'sim-single-result';
+  document.getElementById('drawResultText').textContent = '';
+});
+
+function buildDrawShareText() {
+  const lines = TIERS.filter(t => t.key !== 'lose').map(t => `${t.rank} ${drawTracker.tally[t.key].toLocaleString()}회`);
+  const roiText = document.getElementById('drawRoiValue').textContent;
+  return `Lotto Stat 가상 추첨에서 ${drawTracker.trials.toLocaleString()}번 뽑아봤어요!\n${lines.join(' · ')}\n수익률 ${roiText}`;
+}
+
+document.getElementById('drawShareBtn').addEventListener('click', async function() {
+  const btn = this;
+  if (drawTracker.trials === 0) {
+    document.getElementById('drawResultText').textContent = '먼저 가상 추첨을 해보세요.';
+    return;
+  }
+  const myNumValues = Array.from(document.querySelectorAll('#myNumbers .ball-input')).map(el => el.value);
+  const payload = { nums: myNumValues, trials: drawTracker.trials, tally: drawTracker.tally };
+  const url = new URL(location.href);
+  url.searchParams.set('draw', encodeURIComponent(JSON.stringify(payload)));
+  const shareUrl = url.toString();
+  const text = buildDrawShareText();
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: 'Lotto Stat 가상 추첨 결과', text, url: shareUrl });
+    } catch (e) { /* 사용자가 공유를 취소한 경우 등은 무시 */ }
+    return;
+  }
+  const original = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+    btn.textContent = '복사됨!';
+  } catch (e) {
+    btn.textContent = '복사 실패';
+  }
+  setTimeout(() => { btn.textContent = original; }, 1500);
+});
+</script>
+{% endblock %}

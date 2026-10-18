@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block page_description %}{{ post.title }} - 로또 분석기 자유게시판{% endblock %}
+{% block content %}
+
+<div class="card">
+  <h2>{{ post.title }}</h2>
+  <div class="post-meta muted">
+    <span>{{ post.nickname }}</span>
+    <span>{{ post.created_at }}</span>
+    <span>조회 {{ post.views }}</span>
+  </div>
+  <div class="post-content">{{ post.content }}</div>
+</div>
+
+{% if error %}
+<p class="form-error">{{ error }}</p>
+{% endif %}
+
+<div class="card">
+  <div class="toolbar">
+    <a href="{{ url_for('board_list') }}" class="btn">목록으로</a>
+    <form method="post" action="{{ url_for('board_delete', post_id=post.id) }}" class="delete-form">
+      <input type="password" name="password" placeholder="비밀번호" required minlength="4">
+      <button type="submit">삭제</button>
+    </form>
+  </div>
+</div>
+
+<div class="card" id="comments">
+  <h2 style="margin-top:0;">댓글 <span class="muted" style="font-weight:400;">({{ comments|length }}개)</span></h2>
+
+  {% if comment_error %}
+  <p class="form-error">{{ comment_error }}</p>
+  {% endif %}
+
+  {% if comments %}
+  <div class="comment-list">
+    {% for c in comments %}
+    <div class="comment-item">
+      <div class="comment-head">
+        <span class="comment-nick">{{ c.nickname }}</span>
+        <span class="muted comment-date">{{ c.created_at }}</span>
+      </div>
+      <div class="comment-content">{{ c.content }}</div>
+      <form method="post" action="{{ url_for('board_comment_delete', post_id=post.id, comment_id=c.id) }}" class="comment-delete-form">
+        <input type="password" name="password" placeholder="비밀번호" required minlength="4">
+        <button type="submit">삭제</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="muted">아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('board_comment_write', post_id=post.id) }}" class="board-form comment-form">
+    <div class="comment-form-row">
+      <input type="text" name="nickname" placeholder="닉네임" maxlength="20" required>
+      <input type="password" name="password" placeholder="비밀번호" minlength="4" required>
+    </div>
+    <textarea name="content" rows="3" maxlength="500" placeholder="댓글을 입력하세요" required></textarea>
+    <!-- 허니팟: 사람에게는 숨겨져 있고 스팸봇만 채우는 필드 -->
+    <div class="hp-field" aria-hidden="true">
+      <label for="comment_homepage">홈페이지</label>
+      <input type="text" id="comment_homepage" name="homepage" tabindex="-1" autocomplete="off">
+    </div>
+    <div class="toolbar">
+      <button type="submit" class="primary">댓글 등록</button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}

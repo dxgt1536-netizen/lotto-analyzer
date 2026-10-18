@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% import "_ad_slot.html" as ads with context %}
+{% block title %}로또 번호 통계{% endblock %}
+{% block page_description %}로또 분석기로 살펴보는 로또 6/45 전체 {{ count }}회차 번호별 출현 빈도, 핫/콜드 번호, 홀짝 비율, 합계 분포, 자주 나오는 번호 쌍 통계.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  전체 {{ count }}회차 당첨번호를 집계한 통계입니다. 로또는 매 회차 독립적인 무작위 추첨이라
+  아래 통계가 다음 회차 결과를 보장하지는 않지만, 지금까지 어떤 번호가 얼마나 자주 나왔는지
+  살펴보는 참고 자료로 활용할 수 있습니다.
+</p>
+
+{% if count == 0 %}
+<div class="card">
+  <p class="muted">저장된 데이터가 없습니다. <a href="{{ url_for('index') }}">홈</a>에서 먼저 데이터를 가져오세요.</p>
+</div>
+{% else %}
+
+<div class="card">
+  <h2>최근 {{ recent_n }}회 번호별 출현 빈도</h2>
+  <div class="freq-chart-wrap">
+    <div class="freq-chart">
+      {% for n in range(1, 46) %}
+      <div class="freq-bar" style="height: {{ ((recent_freq[n] / max_recent_freq) * 100) if max_recent_freq else 0 }}%; background:{{ m.ball_color(n) }}">
+        <div class="tooltip">{{ n }}번: {{ recent_freq[n] }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="freq-labels">
+      {% for n in range(1, 46) %}
+      <span>{{ n if n % 5 == 0 or n == 1 else '' }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>최근 {{ recent_n }}회 가장 많이 나온 번호 (핫)</h2>
+    <div class="ball-row">
+      {% for n, c in recent_hot %}
+      <div style="text-align:center;">
+        {{ m.ball(n) }}
+        <div class="muted" style="font-size:11px;">{{ c }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h2>최근 {{ recent_n }}회 가장 적게 나온 번호 (콜드)</h2>
+    <div class="ball-row">
+      {% for n, c in recent_cold %}
+      <div style="text-align:center;">
+        {{ m.ball(n) }}
+        <div class="muted" style="font-size:11px;">{{ c }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>번호별 출현 빈도 (전체 {{ count }}회차)</h2>
+  <div class="freq-chart-wrap">
+    <div class="freq-chart">
+      {% for n in range(1, 46) %}
+      <div class="freq-bar" style="height: {{ ((freq[n] / max_freq) * 100) if max_freq else 0 }}%; background:{{ m.ball_color(n) }}">
+        <div class="tooltip">{{ n }}번: {{ freq[n] }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="freq-labels">
+      {% for n in range(1, 46) %}
+      <span>{{ n if n % 5 == 0 or n == 1 else '' }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+{{ ads.ad_slot(adsense_slot_inline) }}
+
+<div class="two-col">
+  <div class="card">
+    <h2>가장 많이 나온 번호 (핫)</h2>
+    <div class="ball-row">
+      {% for n, c in hot %}
+      <div style="text-align:center;">
+        {{ m.ball(n) }}
+        <div class="muted" style="font-size:11px;">{{ c }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="card">
+    <h2>가장 적게 나온 번호 (콜드)</h2>
+    <div class="ball-row">
+      {% for n, c in cold %}
+      <div style="text-align:center;">
+        {{ m.ball(n) }}
+        <div class="muted" style="font-size:11px;">{{ c }}회</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>홀수 / 짝수 비율</h2>
+    <div class="hbar-group">
+      <div class="hbar-row">
+        <div class="name">홀수</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:{{ (odd_even.odd / (odd_even.odd + odd_even.even) * 100) }}%"></div></div>
+        <div class="count">{{ odd_even.odd }}</div>
+      </div>
+      <div class="hbar-row">
+        <div class="name">짝수</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:{{ (odd_even.even / (odd_even.odd + odd_even.even) * 100) }}%"></div></div>
+        <div class="count">{{ odd_even.even }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>저(1-22) / 고(23-45) 비율</h2>
+    <div class="hbar-group">
+      <div class="hbar-row">
+        <div class="name">저(1-22)</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:{{ (low_high.low / (low_high.low + low_high.high) * 100) }}%"></div></div>
+        <div class="count">{{ low_high.low }}</div>
+      </div>
+      <div class="hbar-row">
+        <div class="name">고(23-45)</div>
+        <div class="hbar-track"><div class="hbar-fill" style="width:{{ (low_high.high / (low_high.low + low_high.high) * 100) }}%"></div></div>
+        <div class="count">{{ low_high.high }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>당첨번호 합계 분포</h2>
+  <p class="muted" style="margin-top:-8px;">6개 번호를 더한 합계는 중심극한정리에 따라 종 모양(정규분포)에 가까운 형태를 보입니다.</p>
+  <div class="curve-chart-wrap">
+    <svg viewBox="0 0 {{ sum_curve.width }} {{ sum_curve.height }}" class="curve-chart">
+      <line x1="0" y1="{{ sum_curve.baseline_y }}" x2="{{ sum_curve.width }}" y2="{{ sum_curve.baseline_y }}" class="curve-baseline" />
+      <path d="{{ sum_curve.area_path }}" class="curve-area" />
+      <path d="{{ sum_curve.line_path }}" class="curve-line" />
+      {% for p in sum_curve.points %}
+      <circle cx="{{ p.x }}" cy="{{ p.y }}" r="2.5" class="curve-dot" />
+      <circle cx="{{ p.x }}" cy="{{ p.y }}" r="9" class="curve-hit">
+        <title>합계 {{ p.label }}: {{ p.count }}회</title>
+      </circle>
+      {% endfor %}
+    </svg>
+    <div class="curve-xaxis">
+      {% for t in sum_curve.x_ticks %}
+      <span style="left:{{ (t.x / sum_curve.width * 100) }}%">{{ t.label }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>가장 자주 같이 나온 번호 쌍 (Top 10)</h2>
+  <div class="pair-list">
+    {% for pair, c in pairs %}
+    <div class="pair-chip">
+      {{ m.ball(pair[0], small=True) }}{{ m.ball(pair[1], small=True) }}
+      <span class="n">{{ c }}회</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

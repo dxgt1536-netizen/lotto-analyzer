@@ -1,0 +1,7 @@
+# /etc/caddy/Caddyfile 에 추가된 블록 (다른 사이트 블록과 나란히 존재).
+# Caddy가 DNS로 이 도메인이 서버를 가리키는 걸 확인하면 Let's Encrypt 인증서를
+# 자동으로 발급/갱신한다. 인증서 관련 설정은 따로 필요 없음.
+
+lottoanalysis.duckdns.org {
+    reverse_proxy localhost:8000
+}

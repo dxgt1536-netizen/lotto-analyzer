@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}역대 당첨금 확인{% endblock %}
+{% block page_description %}로또 6/45 역대 회차별 당첨번호와 1등 당첨금, 1등 당첨자 수, 총 판매금액을 회차별로 확인하세요.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  로또 6/45 전체 회차의 당첨번호와 1등 당첨금·당첨자 수·총 판매금액을 회차별로 모아봤습니다.
+  1등 당첨금은 1인당 실수령 전 금액(세전) 기준입니다.
+</p>
+
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0;">역대 당첨금 <span class="muted" style="font-weight:400;">(전체 {{ total }}회차)</span></h2>
+  </div>
+
+  {% macro sort_link(key, label) %}
+    {% set next_order = 'asc' if (sort == key and order == 'desc') else 'desc' %}
+    <a href="{{ url_for('prizes', sort=key, order=next_order) }}" class="sort-link {{ 'active' if sort == key else '' }}">
+      {{ label }}{% if sort == key %}<span class="sort-arrow">{{ '▲' if order == 'asc' else '▼' }}</span>{% endif %}
+    </a>
+  {% endmacro %}
+
+  {% if draws %}
+  <div style="overflow-x:auto;">
+  <table class="prizes-table">
+    <thead>
+      <tr>
+        <th style="width:70px;">회차</th>
+        <th style="width:110px;">{{ sort_link('round', '추첨일') }}</th>
+        <th style="width:200px;">당첨번호</th>
+        <th style="width:150px;">{{ sort_link('total_amount', '1등 총 당첨금') }}</th>
+        <th style="width:90px;">{{ sort_link('winners', '1등 인원') }}</th>
+        <th style="width:130px;">{{ sort_link('amount', '1인당 당첨금') }}</th>
+        <th style="width:150px;">{{ sort_link('sales', '총 판매금액') }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in draws %}
+      <tr>
+        <td><a href="{{ url_for('prize_detail', round_no=d.round) }}">{{ d.round }}</a></td>
+        <td class="muted">{{ d.draw_date }}</td>
+        <td>
+          <div class="ball-row nowrap">
+            {{ m.ball(d.n1, tiny=True) }}{{ m.ball(d.n2, tiny=True) }}{{ m.ball(d.n3, tiny=True) }}
+            {{ m.ball(d.n4, tiny=True) }}{{ m.ball(d.n5, tiny=True) }}{{ m.ball(d.n6, tiny=True) }}
+            <span class="ball-plus" style="font-size:12px;">+</span>
+            {{ m.ball(d.bonus, tiny=True) }}
+          </div>
+        </td>
+        <td class="muted">{{ (d.first_prize_amount * d.first_prize_winners) | comma }}원</td>
+        <td class="muted">{{ d.first_prize_winners | comma }}명</td>
+        <td>{{ d.first_prize_amount | comma }}원</td>
+        <td class="muted">{{ d.total_sales | comma }}원</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  {% if total_pages > 1 %}
+  <div class="pagination">
+    {% if page > 1 %}
+    <a href="{{ url_for('prizes', page=page - 1, sort=sort, order=order) }}">‹ 이전</a>
+    {% endif %}
+    {% for p in pages_window %}
+      {% if p is none %}
+      <span class="pagination-ellipsis">…</span>
+      {% else %}
+      <a href="{{ url_for('prizes', page=p, sort=sort, order=order) }}" class="{{ 'active' if p == page else '' }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}
+    <a href="{{ url_for('prizes', page=page + 1, sort=sort, order=order) }}">다음 ›</a>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="muted">아직 저장된 데이터가 없습니다. 잠시 후 다시 확인해주세요.</p>
+  {% endif %}
+</div>
+
+{% endblock %}

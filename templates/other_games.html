@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}기타 복권 1등 당첨현황{% endblock %}
+{% block page_description %}파워볼, 스피드키노, 트레져헌터, 트리플럭, 메가빙고, 더블잭마이더스, 캐치미 등 동행복권 기타 복권의 1등 당첨확률, 평균·최고 당첨금과 최근 1등 당첨 이력을 확인하세요.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  로또 6/45 외에 동행복권에서 판매하는 즉석복권·추첨식 복권의 1등 당첨현황입니다. 게임별 1등 당첨확률,
+  평균/최고/최저 당첨금과 실시간 잭팟, 최근 1등 당첨 이력을 확인할 수 있어요. (5분 간격으로 갱신)
+</p>
+
+{% macro game_card(g) %}
+<div class="card game-card">
+  <h3 style="margin-top:0;">{{ g.name }}</h3>
+  <div class="tax-hero-label">현재 1등 잭팟</div>
+  <div class="game-jackpot">{{ g.rank1_jackpot | comma }}원</div>
+  {% if g.rank2_jackpot %}
+  <p class="muted" style="text-align:center; margin-top:-8px;">2등 잭팟 {{ g.rank2_jackpot | comma }}원</p>
+  {% else %}
+  <p class="muted" style="text-align:center; margin-top:-8px;">&nbsp;</p>
+  {% endif %}
+
+  {% if g.predicted_date or g.avg_amount %}
+  <div class="game-predict {{ 'predict-warning' if g.predict_status == 'warning' else 'predict-danger' if g.predict_status == 'danger' else '' }}">
+    <div class="game-predict-label">📈 다음 1등 예상 (과거 통계 추정)</div>
+    <div class="game-predict-row">
+      <span class="muted">예상일</span>
+      <strong>{{ g.predicted_date or '-' }}</strong>
+    </div>
+    <div class="game-predict-row">
+      <span class="muted">예상 당첨금</span>
+      <strong>{{ (g.avg_amount | comma) + '원' if g.avg_amount else '-' }}</strong>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="tax-hero-label" style="margin-top:18px;">최근 1등 당첨</div>
+  {% if g.recent_wins %}
+  {% for w in g.recent_wins %}
+  <div class="winner-row">
+    <span class="winner-date muted">{{ w.ltWnDt }}</span>
+    <span class="winner-amount">{% if w.cnt and w.cnt > 1 %}<span class="winner-cnt">{{ w.cnt }}x</span>{% endif %}{{ w.ltWnAmt | comma }}원</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="muted">최근 1등 당첨 내역이 없습니다.</p>
+  {% endif %}
+
+  <div class="game-stats" style="margin-top:14px;">
+    {% if g.probability %}
+    <div class="game-stat-row"><span class="muted">1등 확률</span><strong>{{ g.probability }}</strong></div>
+    {% endif %}
+    {% if g.avg_amount %}
+    <div class="game-stat-row"><span class="muted">평균 당첨금</span><strong>{{ g.avg_amount | comma }}원</strong></div>
+    {% endif %}
+    {% if g.max_amount %}
+    <div class="game-stat-row"><span class="muted">역대 최고</span><strong>{{ g.max_amount | comma }}원</strong></div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+<h2>추첨식 복권</h2>
+<div class="games-grid">
+  {% for g in games if g.category == '추첨식 복권' %}
+  {{ game_card(g) }}
+  {% endfor %}
+</div>
+
+<h2>즉석복권</h2>
+<div class="games-grid games-grid-2col">
+  {% for g in games if g.category == '즉석복권' %}
+  {{ game_card(g) }}
+  {% endfor %}
+</div>
+
+<p class="muted" style="font-size:12px;">
+  데이터 출처: 동행복권(dhlottery.co.kr) 공개 정보. 마스킹된 아이디는 동행복권이 제공하는 형식 그대로입니다.
+  '다음 1등 예상'은 과거 당첨일 간격과 평균 당첨금을 단순 계산한 참고용 추정치이며, 실제 추첨은 매 회
+  독립적인 무작위 확률이라 결과를 보장하지 않습니다.
+</p>
+
+{% endblock %}

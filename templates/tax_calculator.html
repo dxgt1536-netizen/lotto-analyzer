@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block main_class %}main-wide{% endblock %}
+{% block title %}로또 세금 계산기{% endblock %}
+{% block page_description %}로또 당첨금 세금 계산기. 200만원 이하 비과세, 3억원까지 22%, 3억원 초과분 33% 기타소득세 기준으로 실수령액을 바로 계산해보세요.{% endblock %}
+{% block content %}
+
+<p class="intro-text">
+  로또 당첨금은 '기타소득'으로 분류되어 당첨 즉시 세금을 뗀 뒤 지급됩니다. 당첨금액을 입력하면
+  세금과 실수령액을 바로 계산해드려요.
+</p>
+
+{% include "_tax_calculator.html" %}
+
+{% endblock %}
